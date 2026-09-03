@@ -14,6 +14,9 @@
 #include "JsonHandler.h"
 #include "JsonNode.h"
 #include "TreeHandler.h"
+#include "TreeState.h"
+
+#include <unordered_map>
 
 
 class JsonViewDlg
@@ -43,9 +46,13 @@ public:
 
     void ShowDlg(bool bShow);
     void FormatJson();
+    auto FormatJsonDocument() -> bool;    // true = document handled, caller may redraw the tree
     void CompressJson();
     void SortJsonByKey();
-    void HandleTabActivated();
+    void HandleTabActivated(uptr_t activatedBufferId);
+    void HandleFileClosed(uptr_t bufferId);
+    void HandleFileOpened();
+    void SyncBufferId();
     void UpdateTitle();
 
     HTREEITEM InsertToTree(HTREEITEM parent, const std::string& text) override;
@@ -53,8 +60,8 @@ public:
     void      AppendNodeCount(HTREEITEM node, unsigned elementCount, bool bArray) override;
 
 private:
-    void DrawJsonTree();
-    void ReDrawJsonTree(bool bForce = false);
+    void DrawJsonTree(bool bPreserveExpansion = false);
+    void ReDrawJsonTree(bool bForce = false, bool bPreserveExpansion = false);
     void HighlightAsJson(bool bForcefully = false) const;
     auto PopulateTreeUsingSax(HTREEITEM tree_root, const std::string& jsonText) -> std::optional<std::wstring>;
 
@@ -65,6 +72,32 @@ private:
     void GoToPosition(size_t nLineToGo, size_t nPos, size_t nLen) const;
 
     void SearchInTree();
+
+private:
+    void CaptureCurrentTabState();
+    void RestoreTabState(uptr_t bufferId);
+    void ShowEmptyTree();
+
+    auto CaptureExpansionState() const -> TreeExpansionState;
+    void ApplyExpansionState(const TreeExpansionState& state);
+    auto CaptureTreeState() const -> TreeState;
+    void ApplyTreeState(const TreeState& state);
+    void SaveTreeSnapshot();
+
+    auto CollectExpandedPaths() const -> std::vector<std::wstring>;
+    auto GetCurrentSelectedPath() const -> std::vector<std::wstring>;
+    void ExpandByPath(const std::vector<std::wstring>& path);
+    void SelectByPath(const std::vector<std::wstring>& path);
+
+    // Key of a node as used inside a node path: the raw key without the
+    // surrounding quotes ("name" -> name, [0] -> [0]).
+    auto GetPathKey(HTREEITEM hti) const -> std::wstring;
+
+    // Resolve a key path (relative to the tree root) back to a node.
+    // Returns nullptr when any level of the path cannot be found.
+    auto FindNodeByPath(const std::vector<std::wstring>& path) const -> HTREEITEM;
+
+    auto GetCurrentBufferId() const -> uptr_t;
 
     auto GetTitleFileName() const -> std::wstring;
     void PrepareButtons();
@@ -95,6 +128,7 @@ private:
     void SetTreeViewZoom(double dwZoomFactor) const;
     void UpdateUIOnZoom(int zoomPercentage) const;
     void HandleZoomOnScroll(WPARAM wParam) const;
+    void PersistZoom(int zoomPercentage);
 
     void HandleTreeEvents(LPARAM lParam) const;
 
@@ -127,4 +161,8 @@ private:
     std::unique_ptr<TreeViewCtrl>    m_pTreeView = nullptr;
     std::unique_ptr<SliderCtrl>      m_pTreeViewZoom = nullptr;
     std::shared_ptr<Setting>         m_pSetting  = nullptr;
+
+    // Per-tab (buffer) tree snapshots: buffer id -> captured tree state
+    std::unordered_map<uptr_t, TreeState> m_tabSnapshots;
+    uptr_t                                m_nCurrentBufferId = 0;
 };
