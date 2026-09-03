@@ -135,6 +135,7 @@ namespace ProfileSettingTests
         EXPECT_EQ(setting.indent.style, IndentStyle::AUTO);
 
         EXPECT_EQ(setting.bFollowCurrentTab, false);
+        EXPECT_EQ(setting.bDrawOnOpen, false);
         EXPECT_EQ(setting.bAutoFormat, false);
         EXPECT_EQ(setting.bUseJsonHighlight, true);
 
@@ -153,6 +154,7 @@ namespace ProfileSettingTests
 
         expected.bAutoFormat       = true;
         expected.bFollowCurrentTab = true;
+        expected.bDrawOnOpen       = true;
         expected.bAutoFormat       = true;
         expected.bUseJsonHighlight = false;
 
@@ -171,11 +173,27 @@ namespace ProfileSettingTests
         EXPECT_EQ(actual.indent.style, expected.indent.style);
 
         EXPECT_EQ(actual.bFollowCurrentTab, expected.bFollowCurrentTab);
+        EXPECT_EQ(actual.bDrawOnOpen, expected.bDrawOnOpen);
         EXPECT_EQ(actual.bAutoFormat, expected.bAutoFormat);
         EXPECT_EQ(actual.bUseJsonHighlight, expected.bUseJsonHighlight);
 
         EXPECT_EQ(actual.parseOptions.bIgnoreComment, expected.parseOptions.bIgnoreComment);
         EXPECT_EQ(actual.parseOptions.bIgnoreTrailingComma, expected.parseOptions.bIgnoreTrailingComma);
         EXPECT_EQ(actual.parseOptions.bReplaceUndefined, expected.parseOptions.bReplaceUndefined);
+    }
+
+    TEST_F(ProfileTest, DrawOnOpen_RoundTrip)
+    {
+        Setting expected, actual;
+
+        expected.bDrawOnOpen = true;
+        EXPECT_TRUE(m_pProfile->SetSettings(expected));
+        EXPECT_TRUE(m_pProfile->GetSettings(actual));
+        EXPECT_EQ(actual.bDrawOnOpen, true);
+
+        expected.bDrawOnOpen = false;
+        EXPECT_TRUE(m_pProfile->SetSettings(expected));
+        EXPECT_TRUE(m_pProfile->GetSettings(actual));
+        EXPECT_EQ(actual.bDrawOnOpen, false);
     }
 }    // namespace ProfileSettingTests
