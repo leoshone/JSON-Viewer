@@ -138,6 +138,7 @@ namespace ProfileSettingTests
         EXPECT_EQ(setting.bDrawOnOpen, false);
         EXPECT_EQ(setting.bAutoFormat, false);
         EXPECT_EQ(setting.bUseJsonHighlight, true);
+        EXPECT_EQ(setting.nTreeZoom, 100);
 
         EXPECT_EQ(setting.parseOptions.bIgnoreComment, true);
         EXPECT_EQ(setting.parseOptions.bIgnoreTrailingComma, true);
@@ -176,10 +177,33 @@ namespace ProfileSettingTests
         EXPECT_EQ(actual.bDrawOnOpen, expected.bDrawOnOpen);
         EXPECT_EQ(actual.bAutoFormat, expected.bAutoFormat);
         EXPECT_EQ(actual.bUseJsonHighlight, expected.bUseJsonHighlight);
+        EXPECT_EQ(actual.nTreeZoom, expected.nTreeZoom);
 
         EXPECT_EQ(actual.parseOptions.bIgnoreComment, expected.parseOptions.bIgnoreComment);
         EXPECT_EQ(actual.parseOptions.bIgnoreTrailingComma, expected.parseOptions.bIgnoreTrailingComma);
         EXPECT_EQ(actual.parseOptions.bReplaceUndefined, expected.parseOptions.bReplaceUndefined);
+    }
+
+    TEST_F(ProfileTest, TreeZoom_RoundTrip)
+    {
+        // a profile without the TREE_ZOOM key falls back to 100%
+        {
+            Setting setting {};
+            EXPECT_TRUE(m_pProfile->GetSettings(setting));
+            EXPECT_EQ(setting.nTreeZoom, 100);
+        }
+
+        // every value inside the slider range must survive a write/read cycle
+        for (int zoom : { 80, 100, 150, 200, 250 })
+        {
+            Setting expected {};
+            expected.nTreeZoom = zoom;
+            ASSERT_TRUE(m_pProfile->SetSettings(expected)) << zoom;
+
+            Setting actual {};
+            ASSERT_TRUE(m_pProfile->GetSettings(actual)) << zoom;
+            EXPECT_EQ(actual.nTreeZoom, zoom);
+        }
     }
 
     TEST_F(ProfileTest, DrawOnOpen_RoundTrip)
