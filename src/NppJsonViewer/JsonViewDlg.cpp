@@ -1,5 +1,7 @@
 #include <format>
 #include <regex>
+#include <functional>
+#include <algorithm>
 
 #include "JsonViewDlg.h"
 #include "Define.h"
@@ -66,14 +68,26 @@ void JsonViewDlg::ShowDlg(bool bShow)
 
     if (bShow)
     {
-        // Draw json tree now
-        DrawJsonTree();
+        m_nCurrentBufferId = GetCurrentBufferId();
+
+        // R2: showing the panel is *not* a request to parse anything. Only a
+        // snapshot left behind by an earlier explicit "Refresh JSON Tree" is
+        // restored; every other tab comes up with the empty placeholder tree.
+        RestoreTabState(m_nCurrentBufferId);
     }
 
     DockingDlgInterface::display(bShow);
 }
 
 void JsonViewDlg::FormatJson()
+{
+    // D1: after formatting, the tree is redrawn and the tab snapshot updated.
+    // The expansion state of the previous tree is preserved.
+    if (FormatJsonDocument())
+        ReDrawJsonTree(true, true);
+}
+
+auto JsonViewDlg::FormatJsonDocument() -> bool
 {
     UpdateTitle();
 
@@ -84,7 +98,7 @@ void JsonViewDlg::FormatJson()
     {
         const std::wstring msg = IsMultiSelection(selectedData) ? JSON_ERR_MULTI_SELECTION : JSON_ERR_PARSE;
         ShowMessage(JSON_INFO_TITLE, msg, MB_OK | MB_ICONINFORMATION);
-        return;
+        return false;
     }
 
     auto [le, lf, indentChar, indentLen] = GetFormatSetting();
@@ -99,12 +113,12 @@ void JsonViewDlg::FormatJson()
     else
     {
         if (CheckForTokenUndefined(JsonViewDlg::eMethod::FormatJson, selectedText.value(), res, NULL))
-            return;
+            return false;
 
         ReportError(res);
     }
 
-    ReDrawJsonTree();
+    return true;
 }
 
 void JsonViewDlg::CompressJson()
@@ -136,7 +150,7 @@ void JsonViewDlg::CompressJson()
         ReportError(res);
     }
 
-    ReDrawJsonTree();
+    ReDrawJsonTree(true, true);
 }
 
 void JsonViewDlg::SortJsonByKey()
@@ -170,7 +184,7 @@ void JsonViewDlg::SortJsonByKey()
         ReportError(res);
     }
 
-    ReDrawJsonTree();
+    ReDrawJsonTree(true, true);
 }
 
 bool JsonViewDlg::CheckForTokenUndefined(eMethod method, std::string selectedText, Result& res, HTREEITEM tree_root)
@@ -278,27 +292,6 @@ void JsonViewDlg::ProcessScintillaData(const ScintillaData& scintillaData, std::
         scintillaData);
 }
 
-void JsonViewDlg::HandleTabActivated()
-{
-    const bool bIsVisible = isCreated() && isVisible();
-    if (bIsVisible)
-    {
-        m_pEditor->RefreshViewHandle();
-        if (m_pEditor->IsJsonFile())
-        {
-            if (m_pSetting->bFollowCurrentTab)
-            {
-                DrawJsonTree();
-            }
-
-            if (m_pSetting->bAutoFormat)
-            {
-                FormatJson();
-            }
-        }
-    }
-}
-
 void JsonViewDlg::ValidateJson()
 {
     UpdateTitle();
@@ -330,16 +323,25 @@ void JsonViewDlg::ValidateJson()
         ReportError(res);
     }
 
-    DrawJsonTree();
+    DrawJsonTree(true);
 }
 
-void JsonViewDlg::DrawJsonTree()
+void JsonViewDlg::DrawJsonTree(bool bPreserveExpansion)
 {
+    // The tree always belongs to the document of the currently active tab
+    m_nCurrentBufferId = GetCurrentBufferId();
+
     UpdateTitle();
 
     // Disable all buttons and treeView
     std::vector<DWORD> ctrls = {IDC_BTN_REFRESH, IDC_BTN_VALIDATE, IDC_BTN_FORMAT, IDC_BTN_SEARCH, IDC_EDT_SEARCH};
     EnableControls(ctrls, false);
+
+    // Capture the expansion/selection state before rebuilding (refresh scenario)
+    TreeExpansionState expState;
+    const bool         bHasCurrentTree = m_pTreeView->GetRoot() && m_pTreeView->GetNodeCount() > 1;
+    if (bPreserveExpansion && bHasCurrentTree)
+        expState = CaptureExpansionState();
 
     HTREEITEM rootNode = nullptr;
     rootNode           = m_pTreeView->InitTree();
@@ -380,17 +382,26 @@ void JsonViewDlg::DrawJsonTree()
 
     m_pTreeView->Expand(rootNode);
 
+    // Restore expansion/selection of the previous tree onto the new one
+    if (bPreserveExpansion && bHasCurrentTree && m_pTreeView->GetNodeCount() > 1)
+    {
+        ApplyExpansionState(expState);
+    }
+
+    // Update the snapshot of the current tab with the freshly drawn tree
+    SaveTreeSnapshot();
+
     // Enable all buttons and treeView
     EnableControls(ctrls, true);
 }
 
-void JsonViewDlg::ReDrawJsonTree(bool bForce)
+void JsonViewDlg::ReDrawJsonTree(bool bForce, bool bPreserveExpansion)
 {
     const bool bIsVisible = isCreated() && isVisible();
     const bool bReDraw    = bForce || bIsVisible;
     if (bReDraw)
     {
-        DrawJsonTree();
+        DrawJsonTree(bPreserveExpansion);
     }
 }
 
@@ -563,6 +574,357 @@ void JsonViewDlg::SearchInTree()
                 CUtility::SetEditCtrlText(::GetDlgItem(_hSelf, IDC_EDT_NODEPATH), STR_SRCH_NOTFOUND + itemToSearch);
         }
     }
+}
+
+void JsonViewDlg::HandleTabActivated(uptr_t activatedBufferId)
+{
+    const bool bIsVisible = isCreated() && isVisible();
+    if (!bIsVisible)
+    {
+        m_nCurrentBufferId = activatedBufferId;
+        return;
+    }
+
+    // Save the tree of the tab we are leaving (only if the user had drawn a tree there)
+    CaptureCurrentTabState();
+
+    // Switch editor handle to the newly activated tab
+    m_pEditor->RefreshViewHandle();
+    m_nCurrentBufferId = activatedBufferId;
+
+    // Restore snapshot of the new tab, or show an empty tree if it has none
+    RestoreTabState(activatedBufferId);
+
+    UpdateTitle();
+}
+
+void JsonViewDlg::HandleFileClosed(uptr_t bufferId)
+{
+    m_tabSnapshots.erase(bufferId);
+
+    // Notepad++ does not guarantee whether NPPN_FILECLOSED or
+    // NPPN_BUFFERACTIVATED arrives first. Forgetting the association here
+    // prevents a later CaptureCurrentTabState() from re-creating the snapshot
+    // of the just closed buffer.
+    if (bufferId == m_nCurrentBufferId)
+        m_nCurrentBufferId = 0;
+}
+
+void JsonViewDlg::HandleFileOpened()
+{
+    // D5: when "auto format on open" is enabled, format the document right
+    // after it has been opened. The tree itself is NOT drawn automatically;
+    // the user decides when to refresh it.
+    if (m_pSetting->bAutoFormat && isCreated() && isVisible())
+    {
+        m_pEditor->RefreshViewHandle();
+        if (m_pEditor->IsJsonFile())
+        {
+            // Only the document is formatted here; the tree stays untouched
+            // until the user presses "Refresh JSON Tree".
+            FormatJsonDocument();
+        }
+    }
+}
+
+void JsonViewDlg::SyncBufferId()
+{
+    m_nCurrentBufferId = GetCurrentBufferId();
+}
+
+void JsonViewDlg::CaptureCurrentTabState()
+{
+    // m_nCurrentBufferId == 0 means "unknown" (e.g. the buffer that was
+    // displayed has just been closed). Nothing can be attached in that case.
+    if (m_nCurrentBufferId == 0)
+        return;
+
+    // Snapshot the tree only when it holds a real drawn tree of this tab.
+    // The empty placeholder tree (single root) is not worth capturing.
+    if (!m_pTreeView->GetRoot())
+        return;
+
+    if (m_pTreeView->GetNodeCount() <= 1)
+        return;
+
+    m_tabSnapshots[m_nCurrentBufferId] = CaptureTreeState();
+}
+
+void JsonViewDlg::RestoreTabState(uptr_t bufferId)
+{
+    auto find = m_tabSnapshots.find(bufferId);
+    if (find == m_tabSnapshots.end() || find->second.roots.empty())
+    {
+        ShowEmptyTree();
+        return;
+    }
+
+    ApplyTreeState(find->second);
+}
+
+void JsonViewDlg::ShowEmptyTree()
+{
+    m_pTreeView->InitTree();
+    m_pTreeView->Expand(m_pTreeView->GetRoot());
+}
+
+TreeState JsonViewDlg::CaptureTreeState() const
+{
+    TreeState state;
+
+    auto hRoot = m_pTreeView->GetRoot();
+    if (!hRoot)
+        return state;
+
+    // The tree root ("JSON") itself is not part of the snapshot: it is always
+    // recreated by InitTree(). Only its children are captured.
+    std::function<void(HTREEITEM, std::vector<TreeStateNode>&)> captureChildren;
+    captureChildren = [&](HTREEITEM hParent, std::vector<TreeStateNode>& siblings) {
+        for (HTREEITEM hChild = m_pTreeView->GetChildItem(hParent); hChild;
+             hChild           = m_pTreeView->GetNextSibling(hChild))
+        {
+            TreeStateNode node;
+            node.text = m_pTreeView->GetNodeName(hChild, false);
+
+            auto pPosition = m_pTreeView->GetNodePosition(hChild);
+            if (pPosition)
+                node.pos = *pPosition;
+
+            node.expanded = m_pTreeView->IsExpanded(hChild);
+
+            captureChildren(hChild, node.children);
+
+            siblings.push_back(std::move(node));
+        }
+    };
+
+    captureChildren(hRoot, state.roots);
+
+    // Selection path (keys from root down to the selected node)
+    state.selectedPath = GetCurrentSelectedPath();
+
+    return state;
+}
+
+void JsonViewDlg::ApplyTreeState(const TreeState& state)
+{
+    // Rebuild the tree control without intermediate redraws
+    HWND hTree = m_pTreeView->GetTreeViewHandle();
+    ::SendMessage(hTree, WM_SETREDRAW, FALSE, 0);
+
+    m_pTreeView->InitTree();
+    auto hRoot = m_pTreeView->GetRoot();
+
+    std::function<HTREEITEM(const TreeStateNode&, HTREEITEM, HTREEITEM)> insertNode;
+    insertNode = [&](const TreeStateNode& node, HTREEITEM hParent, HTREEITEM hAfter) -> HTREEITEM {
+        LPARAM lparam = 0;
+        if (node.pos.has_value())
+            lparam = reinterpret_cast<LPARAM>(new Position(node.pos.value()));
+
+        auto hInserted = m_pTreeView->InsertNodeAfter(hAfter, node.text, lparam, hParent);
+
+        HTREEITEM hPrev = nullptr;
+        for (const auto& child : node.children)
+        {
+            hPrev = insertNode(child, hInserted, hPrev);
+        }
+
+        if (node.expanded && !node.children.empty())
+            m_pTreeView->Expand(hInserted);
+
+        return hInserted;
+    };
+
+    HTREEITEM hPrev = nullptr;
+    for (const auto& rootChild : state.roots)
+    {
+        hPrev = insertNode(rootChild, hRoot, hPrev);
+    }
+
+    // Restore selection. A programmatic selection reports TVC_UNKNOWN in
+    // TVN_SELCHANGED, so it will not make the editor jump to the node.
+    auto hSelected = FindNodeByPath(state.selectedPath);
+    if (hSelected)
+        m_pTreeView->SetSelection(hSelected);
+
+    // The root ("JSON") is always expanded
+    m_pTreeView->Expand(hRoot);
+
+    ::SendMessage(hTree, WM_SETREDRAW, TRUE, 0);
+    ::InvalidateRect(hTree, nullptr, TRUE);
+}
+
+void JsonViewDlg::SaveTreeSnapshot()
+{
+    if (m_nCurrentBufferId == 0)
+        return;
+
+    if (m_pTreeView->GetNodeCount() > 1)
+        m_tabSnapshots[m_nCurrentBufferId] = CaptureTreeState();
+    else
+        m_tabSnapshots.erase(m_nCurrentBufferId);
+}
+
+TreeExpansionState JsonViewDlg::CaptureExpansionState() const
+{
+    TreeExpansionState expState;
+
+    auto hRoot = m_pTreeView->GetRoot();
+    if (!hRoot)
+        return expState;
+
+    // Collect the key path of every node (root excluded) with its expanded flag
+    std::function<void(HTREEITEM, const std::vector<std::wstring>&)> walk;
+    walk = [&](HTREEITEM hParent, const std::vector<std::wstring>& parentKeys) {
+        for (HTREEITEM hChild = m_pTreeView->GetChildItem(hParent); hChild;
+             hChild           = m_pTreeView->GetNextSibling(hChild))
+        {
+            auto keys    = parentKeys;
+            auto nodeKey = GetPathKey(hChild);
+            keys.push_back(nodeKey);
+
+            expState.expandedPaths[TreeStateHelper::JoinPath(parentKeys, nodeKey)] = m_pTreeView->IsExpanded(hChild);
+
+            walk(hChild, keys);
+        }
+    };
+
+    walk(hRoot, {});
+
+    expState.selectedPath = GetCurrentSelectedPath();
+
+    return expState;
+}
+
+void JsonViewDlg::ApplyExpansionState(const TreeExpansionState& state)
+{
+    auto paths = CollectExpandedPaths();
+    auto [pathsToExpand, pathToSelect] = TreeStateHelper::MatchExpansion(state, paths);
+
+    for (const auto& path : pathsToExpand)
+    {
+        auto keys = TreeStateHelper::SplitPath(path);
+        if (!keys.empty())
+            ExpandByPath(keys);
+    }
+
+    if (!pathToSelect.empty())
+        SelectByPath(pathToSelect);
+}
+
+std::vector<std::wstring> JsonViewDlg::CollectExpandedPaths() const
+{
+    std::vector<std::wstring> paths;
+
+    auto hRoot = m_pTreeView->GetRoot();
+    if (!hRoot)
+        return paths;
+
+    std::function<void(HTREEITEM, const std::vector<std::wstring>&)> walk;
+    walk = [&](HTREEITEM hParent, const std::vector<std::wstring>& parentKeys) {
+        for (HTREEITEM hChild = m_pTreeView->GetChildItem(hParent); hChild;
+             hChild           = m_pTreeView->GetNextSibling(hChild))
+        {
+            auto nodeKey = GetPathKey(hChild);
+
+            auto keys = parentKeys;
+            keys.push_back(nodeKey);
+
+            paths.push_back(TreeStateHelper::JoinPath(parentKeys, nodeKey));
+
+            walk(hChild, keys);
+        }
+    };
+
+    walk(hRoot, {});
+
+    return paths;
+}
+
+std::vector<std::wstring> JsonViewDlg::GetCurrentSelectedPath() const
+{
+    std::vector<std::wstring> path;
+
+    auto hRoot     = m_pTreeView->GetRoot();
+    auto hSelected = m_pTreeView->GetSelection();
+    if (!hRoot || !hSelected || hSelected == hRoot)
+        return path;
+
+    // Walk up to the root and reverse the collected keys on the way back
+    std::vector<std::wstring> reversedKeys;
+    for (HTREEITEM h = hSelected; h && h != hRoot; h = m_pTreeView->GetParentItem(h))
+    {
+        reversedKeys.push_back(GetPathKey(h));
+    }
+
+    // Guard against a selection that does not belong to this tree anymore
+    if (m_pTreeView->GetParentItem(hSelected) == nullptr)
+        return {};
+
+    path.assign(reversedKeys.rbegin(), reversedKeys.rend());
+    return path;
+}
+
+auto JsonViewDlg::GetPathKey(HTREEITEM hti) const -> std::wstring
+{
+    auto key = m_pTreeView->GetNodeKey(hti);
+
+    // Remove the surrounding quotes of object keys: "name" -> name.
+    // Array indices ([0]) and unquoted keys are returned untouched.
+    if (key.size() >= 2 && key.front() == L'"' && key.back() == L'"')
+        key = key.substr(1, key.size() - 2);
+
+    return key;
+}
+
+auto JsonViewDlg::FindNodeByPath(const std::vector<std::wstring>& path) const -> HTREEITEM
+{
+    if (path.empty())
+        return nullptr;
+
+    auto hRoot = m_pTreeView->GetRoot();
+    if (!hRoot)
+        return nullptr;
+
+    HTREEITEM hCurrent = hRoot;
+    for (const auto& key : path)
+    {
+        HTREEITEM hNext = m_pTreeView->GetChildItem(hCurrent);
+        while (hNext && GetPathKey(hNext) != key)
+        {
+            hNext = m_pTreeView->GetNextSibling(hNext);
+        }
+
+        if (!hNext)
+            return nullptr;
+
+        hCurrent = hNext;
+    }
+
+    return hCurrent == hRoot ? nullptr : hCurrent;
+}
+
+void JsonViewDlg::ExpandByPath(const std::vector<std::wstring>& path)
+{
+    auto hNode = FindNodeByPath(path);
+    if (hNode)
+        m_pTreeView->Expand(hNode);
+}
+
+void JsonViewDlg::SelectByPath(const std::vector<std::wstring>& path)
+{
+    auto hNode = FindNodeByPath(path);
+    if (hNode)
+    {
+        // TreeView_SelectItem expands collapsed ancestors on its own, so the
+        // expansion state restored just before is left untouched.
+        m_pTreeView->SetSelection(hNode);
+    }
+}
+
+uptr_t JsonViewDlg::GetCurrentBufferId() const
+{
+    return static_cast<uptr_t>(::SendMessage(_hParent, NPPM_GETCURRENTBUFFERID, 0, 0));
 }
 
 void JsonViewDlg::UpdateTitle()
@@ -819,6 +1181,9 @@ void JsonViewDlg::ContextMenuExpand(bool bExpand)
             bExpand ? m_pTreeView->Expand(htiNext) : m_pTreeView->Collapse(htiNext);
         htiNext = m_pTreeView->NextItem(htiNext, htiSelected);
     }
+
+    // Keep the snapshot of this tab in sync with the new expansion state
+    SaveTreeSnapshot();
 }
 
 auto JsonViewDlg::CopyName() const -> std::wstring
@@ -934,6 +1299,19 @@ void JsonViewDlg::UpdateUIOnZoom(int zoomPercentage) const
     // Update the Tree view
     double zoomFactor = zoomPercentage / 100.0;
     SetTreeViewZoom(zoomFactor);
+}
+
+void JsonViewDlg::PersistZoom(int zoomPercentage)
+{
+    const auto& zoomRange = m_pTreeViewZoom->GetRange();
+    if (zoomPercentage < zoomRange.m_nMinZoom || zoomPercentage > zoomRange.m_nMaxZoom)
+        return;
+
+    if (m_pSetting->nTreeZoom != zoomPercentage)
+    {
+        m_pSetting->nTreeZoom = zoomPercentage;
+        ProfileSetting(m_pSetting->configPath).SetSettings(*m_pSetting);
+    }
 }
 
 void JsonViewDlg::HandleZoomOnScroll(WPARAM wParam) const
@@ -1106,6 +1484,12 @@ INT_PTR JsonViewDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
         // Set default node path as JSON
         SetDlgItemText(_hSelf, IDC_EDT_NODEPATH, JSON_ROOT);
 
+        // Apply the persisted zoom level
+        int nZoom = m_pSetting->nTreeZoom;
+        const auto& zoomRange = m_pTreeViewZoom->GetRange();
+        nZoom = std::clamp(nZoom, zoomRange.m_nMinZoom, zoomRange.m_nMaxZoom);
+        UpdateUIOnZoom(nZoom);
+
         return TRUE;
     }
 
@@ -1115,7 +1499,7 @@ INT_PTR JsonViewDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
         {
             // Handle Button events
         case IDC_BTN_REFRESH:
-            DrawJsonTree();
+            DrawJsonTree(true);
             break;
 
         case IDC_BTN_FORMAT:
@@ -1182,6 +1566,7 @@ INT_PTR JsonViewDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
         if (GetKeyState(VK_CONTROL) & 0x8000)
         {
             HandleZoomOnScroll(wParam);
+            PersistZoom(GetZoomLevel());
             return TRUE;
         }
         return FALSE;
@@ -1193,8 +1578,16 @@ INT_PTR JsonViewDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
 
         if (reinterpret_cast<HWND>(lParam) == hSlider)
         {
+            // During thumb dragging (TB_THUMBTRACK) the position changes
+            // continuously; persist only when the gesture has finished.
+            const int  nCode = HIWORD(wParam);
+            const bool bDragging = (nCode == TB_THUMBTRACK);
+
             int pos = m_pTreeViewZoom->GetPosition();
             UpdateUIOnZoom(pos);
+
+            if (!bDragging)
+                PersistZoom(pos);
 
             return TRUE;
         }

@@ -120,7 +120,6 @@ bool SettingsDlg::Apply()
     else if (IsDlgButtonChecked(_hSelf, IDC_RADIO_LINEFORMAT_SINGLE))
         m_pSetting->lineFormat = LineFormat::SINGLELINE;
 
-    m_pSetting->bFollowCurrentTab                 = CUtility::GetCheckboxStatus(::GetDlgItem(_hSelf, IDC_CHK_FOLLOW_CURRENT_DOC));
     m_pSetting->bAutoFormat                       = CUtility::GetCheckboxStatus(::GetDlgItem(_hSelf, IDC_CHK_FORMAT_ON_OPEN));
     m_pSetting->bUseJsonHighlight                 = CUtility::GetCheckboxStatus(::GetDlgItem(_hSelf, IDC_CHK_JSON_HIGHLIGHT));
     m_pSetting->parseOptions.bIgnoreTrailingComma = CUtility::GetCheckboxStatus(::GetDlgItem(_hSelf, IDC_CHK_IGNORE_COMMA));
@@ -217,7 +216,6 @@ void SettingsDlg::SyncUIControlsWithSettings()
     };
 
     // Set all checkbox controls
-    setCheckboxIfValid(IDC_CHK_FOLLOW_CURRENT_DOC, m_pSetting->bFollowCurrentTab);
     setCheckboxIfValid(IDC_CHK_FORMAT_ON_OPEN, m_pSetting->bAutoFormat);
     setCheckboxIfValid(IDC_CHK_JSON_HIGHLIGHT, m_pSetting->bUseJsonHighlight);
     setCheckboxIfValid(IDC_CHK_IGNORE_COMMA, m_pSetting->parseOptions.bIgnoreTrailingComma);

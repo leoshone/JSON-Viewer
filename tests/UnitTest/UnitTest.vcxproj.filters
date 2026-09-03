@@ -60,6 +60,12 @@
     <ClCompile Include="..\..\src\NppJsonViewer\RapidJsonHandler.cpp">
       <Filter>Source Files\NppJsonViewer</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\NppJsonViewer\TreeState.cpp">
+      <Filter>Source Files\NppJsonViewer</Filter>
+    </ClCompile>
+    <ClCompile Include="TreeStateTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="JsonSortByKeyTest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -72,6 +78,9 @@
       <Filter>Source Files\NppJsonViewer</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\NppJsonViewer\RapidJsonHandler.h">
+      <Filter>Source Files\NppJsonViewer</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\NppJsonViewer\TreeState.h">
       <Filter>Source Files\NppJsonViewer</Filter>
     </ClInclude>
   </ItemGroup>

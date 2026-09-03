@@ -90,9 +90,9 @@ bool ProfileSetting::GetSettings(Setting& info) const
     if (bRetVal)
         info.indent.len = nVal;
 
-    bRetVal = bRetVal && ReadValue(STR_INI_OTHER_SEC, STR_INI_OTHER_FOLLOW_TAB, nVal, info.bFollowCurrentTab);
+    bRetVal = bRetVal && ReadValue(STR_INI_OTHER_SEC, STR_INI_OTHER_TREE_ZOOM, nVal, info.nTreeZoom);
     if (bRetVal)
-        info.bFollowCurrentTab = static_cast<bool>(nVal);
+        info.nTreeZoom = nVal;
 
     bRetVal = bRetVal && ReadValue(STR_INI_OTHER_SEC, STR_INI_OTHER_AUTO_FORMAT, nVal, info.bAutoFormat);
     if (bRetVal)
@@ -126,7 +126,7 @@ bool ProfileSetting::SetSettings(const Setting& info) const
     bRetVal = bRetVal && WriteValue(STR_INI_FORMATTING_SEC, STR_INI_FORMATTING_INDENT, static_cast<int>(info.indent.style));
     bRetVal = bRetVal && WriteValue(STR_INI_FORMATTING_SEC, STR_INI_FORMATTING_INDENTCOUNT, info.indent.len);
 
-    bRetVal = bRetVal && WriteValue(STR_INI_OTHER_SEC, STR_INI_OTHER_FOLLOW_TAB, info.bFollowCurrentTab);
+    bRetVal = bRetVal && WriteValue(STR_INI_OTHER_SEC, STR_INI_OTHER_TREE_ZOOM, info.nTreeZoom);
     bRetVal = bRetVal && WriteValue(STR_INI_OTHER_SEC, STR_INI_OTHER_AUTO_FORMAT, info.bAutoFormat);
     bRetVal = bRetVal && WriteValue(STR_INI_OTHER_SEC, STR_INI_OTHER_USE_HIGHLIGHT, info.bUseJsonHighlight);
     bRetVal = bRetVal && WriteValue(STR_INI_OTHER_SEC, STR_INI_OTHER_IGNORE_COMMENT, info.parseOptions.bIgnoreComment);

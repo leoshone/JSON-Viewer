@@ -60,6 +60,9 @@
     <ClCompile Include="TreeViewCtrl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TreeState.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="npp_include\DockingFeature\StaticDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -111,6 +114,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TreeHandler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TreeState.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="TreeViewCtrl.h">

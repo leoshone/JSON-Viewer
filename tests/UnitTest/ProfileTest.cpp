@@ -134,9 +134,10 @@ namespace ProfileSettingTests
         EXPECT_EQ(setting.indent.len, 4u);
         EXPECT_EQ(setting.indent.style, IndentStyle::AUTO);
 
-        EXPECT_EQ(setting.bFollowCurrentTab, false);
         EXPECT_EQ(setting.bAutoFormat, false);
         EXPECT_EQ(setting.bUseJsonHighlight, true);
+
+        EXPECT_EQ(setting.nTreeZoom, 100);
 
         EXPECT_EQ(setting.parseOptions.bIgnoreComment, true);
         EXPECT_EQ(setting.parseOptions.bIgnoreTrailingComma, true);
@@ -152,9 +153,9 @@ namespace ProfileSettingTests
         expected.indent.style = IndentStyle::TAB;
 
         expected.bAutoFormat       = true;
-        expected.bFollowCurrentTab = true;
-        expected.bAutoFormat       = true;
         expected.bUseJsonHighlight = false;
+
+        expected.nTreeZoom = 175;
 
         expected.parseOptions.bIgnoreComment       = false;
         expected.parseOptions.bIgnoreTrailingComma = false;
@@ -170,12 +171,45 @@ namespace ProfileSettingTests
         EXPECT_EQ(actual.indent.len, expected.indent.len);
         EXPECT_EQ(actual.indent.style, expected.indent.style);
 
-        EXPECT_EQ(actual.bFollowCurrentTab, expected.bFollowCurrentTab);
         EXPECT_EQ(actual.bAutoFormat, expected.bAutoFormat);
         EXPECT_EQ(actual.bUseJsonHighlight, expected.bUseJsonHighlight);
+
+        EXPECT_EQ(actual.nTreeZoom, expected.nTreeZoom);
 
         EXPECT_EQ(actual.parseOptions.bIgnoreComment, expected.parseOptions.bIgnoreComment);
         EXPECT_EQ(actual.parseOptions.bIgnoreTrailingComma, expected.parseOptions.bIgnoreTrailingComma);
         EXPECT_EQ(actual.parseOptions.bReplaceUndefined, expected.parseOptions.bReplaceUndefined);
+    }
+
+    TEST_F(ProfileTest, TreeZoom_RoundTrip)
+    {
+        // fresh profile -> default zoom is 100%
+        {
+            Setting setting {};
+            EXPECT_TRUE(m_pProfile->GetSettings(setting));
+            EXPECT_EQ(setting.nTreeZoom, 100);
+        }
+
+        // every boundary value must survive a write/read cycle
+        for (int zoom : { 80, 100, 150, 200, 250 })
+        {
+            Setting expected {};
+            expected.nTreeZoom = zoom;
+            ASSERT_TRUE(m_pProfile->SetSettings(expected)) << zoom;
+
+            Setting actual {};
+            ASSERT_TRUE(m_pProfile->GetSettings(actual)) << zoom;
+            EXPECT_EQ(actual.nTreeZoom, zoom);
+        }
+    }
+
+    TEST_F(ProfileTest, TreeZoom_LegacyFollowTabKeyIsIgnored)
+    {
+        // the removed "FOLLOW_TAB" key must no longer influence the settings
+        ASSERT_TRUE(m_pProfile->WriteValue(L"Others", L"FOLLOW_TAB", 1));
+
+        Setting setting {};
+        EXPECT_TRUE(m_pProfile->GetSettings(setting));
+        EXPECT_EQ(setting.nTreeZoom, 100);
     }
 }    // namespace ProfileSettingTests
