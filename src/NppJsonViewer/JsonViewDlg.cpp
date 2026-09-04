@@ -1620,7 +1620,9 @@ INT_PTR JsonViewDlg::run_dlgProc(UINT message, WPARAM wParam, LPARAM lParam)
         {
             // While the thumb is being dragged (TB_THUMBTRACK) the position
             // changes continuously, so only persist once the gesture is over.
-            const bool bDragging = (HIWORD(wParam) == TB_THUMBTRACK);
+            // WM_HSCROLL carries the notification code in LOWORD(wParam);
+            // HIWORD is the thumb position itself.
+            const bool bDragging = (LOWORD(wParam) == TB_THUMBTRACK);
 
             int pos = m_pTreeViewZoom->GetPosition();
             UpdateUIOnZoom(pos);
