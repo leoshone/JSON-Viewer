@@ -17,6 +17,12 @@
 | R3 Refresh 保留展开态与选中（按节点路径匹配，路径失效的丢弃） | 无（直接生效） | — | [#252](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/252) |
 | R5 打开 json 文件时自动画一次树（之后仍走 R2 快照，不重解析） | `DRAW_ON_OPEN` | `0` | 并入 [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) |
 | R6 识别 jsonc 文件（`.jsonc` 与 `.json` 同等对待：自动画树/切 TAB 跟随/auto-format 均生效） | 无（直接生效） | — | 并入 #251/#253（`IsJsonFile` 同时接受 `L_JSON5`） |
+| R7 修复高 DPI 下面板底部若干行树节点永远滚不到（上游固有 bug，见 [#254](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/254)） | 无（直接生效） | — | [#254](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/254) |
+
+R7 说明（2026-09-04）：上游 `AdjustDocPanelSize()` 把**已是物理像素**的尺寸增量又乘了一遍
+DPI 缩放系数，任何非 100% 缩放的显示器上树控件都会比面板长得快，底部 `(s-1)×增量/行高`
+行被父窗口裁掉且滚动条到不了（150% + 默认行高时约 5~10 行），节点路径输入框也会被整个
+推出面板外。修复改为绝对定位：模板矩形 + 未缩放增量，树底部始终锚在节点路径框上方。
 
 jsonc 支持边界：注释 + 尾逗号（解析层本就支持且默认开启）；完整 JSON5 语法
 （无引号 key、单引号字符串）**不在支持范围**，会照常报解析错误。
@@ -27,9 +33,10 @@ jsonc 支持边界：注释 + 尾逗号（解析层本就支持且默认开启�
 ```
 c448336 (上游 master 基线)
 ├── fix/persist-tree-zoom          = R1                    → PR #251
+├── fix/panel-dpi-clipping         = R7                    → PR #254
 └── fix/keep-expansion-on-refresh  = R3                    → PR #252
         └── fix/per-tab-tree-snapshot = R2 + R5            → PR #253
-                └── integration/all-features = R1+R3+R2+R5 合并（本地全集，不开上游 PR）
+                └── integration/all-features = R1+R3+R2+R5+R7 合并（本地全集，不开上游 PR）
 ```
 
 - **`integration/all-features`** 是"全家桶"：合并 R1 进 #253 链，解决过 3 处
@@ -46,6 +53,12 @@ c448336 (上游 master 基线)
    使"打开文件"不再触发解析。
 4. `NPPN_READY` 会调 `RestoreCurrentTabTree()`（会话恢复场景画树入口）。
 5. 新文件：`TreeExpansion.h/.cpp`（R3 路径工具）、`TreeState.h/.cpp`（R2 快照模型）。
+6. **`AdjustDocPanelSize()` 整个重写（R7，master 基线的 PR #254）**：上游该函数
+   用"DPI 缩放系数 × 增量"做累加式布局，是高 DPI 裁行 bug 的根源。我们改成了
+   绝对定位（模板矩形 + 未缩放增量，新增 `CaptureInitialControlRects()` 和 4 个
+   `m_rcInit*` 成员，删除 `m_lfDeltaWidth/Height`）。**同步上游时此处必冲突**：
+   上游若改这个函数，先确认上游是否已自行修复（看有没有乘 `GetDesktopScale`），
+   没修就保我们的版本。
 
 ---
 
