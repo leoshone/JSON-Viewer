@@ -16,6 +16,11 @@
 | R2 按 TAB 缓存树快照（绝不自动解析，Refresh 才画；切 TAB 回放快照不重解析；关 TAB 清缓存） | 原有 `FOLLOW_TAB=0` 的新行为 | `0` | [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) |
 | R3 Refresh 保留展开态与选中（按节点路径匹配，路径失效的丢弃） | 无（直接生效） | — | [#252](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/252) |
 | R5 打开 json 文件时自动画一次树（之后仍走 R2 快照，不重解析） | `DRAW_ON_OPEN` | `0` | 并入 [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) |
+| R6 识别 jsonc 文件（`.jsonc` 与 `.json` 同等对待：自动画树/切 TAB 跟随/auto-format 均生效） | 无（直接生效） | — | 并入 #251/#253（`IsJsonFile` 同时接受 `L_JSON5`） |
+
+jsonc 支持边界：注释 + 尾逗号（解析层本就支持且默认开启）；完整 JSON5 语法
+（无引号 key、单引号字符串）**不在支持范围**，会照常报解析错误。
+`IsJsonFile()` 是原版就有的判定点，此改动同时惠及 FOLLOW_TAB 与 auto-format。
 
 ### 分支拓扑
 
