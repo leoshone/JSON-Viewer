@@ -17,7 +17,7 @@
 | [#252](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/252) | R3 Refresh 保留展开态 | 09-03 | 无人评审 |
 | [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) | R2+R5 按 TAB 缓存 / 打开画树 | 09-04 | 无人评审（已按 #251 意见撤下 jsonc） |
 | [#254](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/254) | R7 高 DPI 树底行裁切修复 | 09-04 | 无人评审 |
-| **待开 #255** | R6 窄版 jsonc 识别 | — | **待办**：等 #251 有结果再开，见第四节 |
+| **待开 #255** | R6 窄版 jsonc 识别 | — | **计划已定（09-05）**：等 #251 有结果再开，见第四节 |
 
 **总体判断**：上游实质停滞，三个 PR 挂着无人评审。真正的策略是**把上游当主线、定期反向
 同步**，而不是等它吸收我们。但 #251 是个例外——它小而纯，是唯一有希望进上游的，
@@ -103,9 +103,9 @@ return false;
 
 ---
 
-## 四、待办：窄版要不要推上游（#255）
+## 四、待办：窄版推上游（#255）
 
-**结论：要推，但现在不开。**
+**计划已于 2026-09-05 定稿：要推，但现在不开；#251 的 thread 现在也不改。**
 
 - **推的理由**：窄版是正面回应意见 1 的——它压根不接受 JSON5 语言，只在扩展名是
   `.jsonc` 时破例，`.json5` 行为零变化。这是把他的顾虑原样解决的方案，通过概率
@@ -119,9 +119,30 @@ return false;
   > at all; it only recognises the `.jsonc` extension, and a real `.json5` file
   > keeps behaving exactly as before.
 
+- **#251 的 thread 现在不动**：那条 "Removed … jsonc recognition stays in my fork"
+  目前仍然属实（窄版确实只在 fork 里）。而且**编辑评论不会重新发通知**，改了他也不一定
+  看得到，收益极低；刚说完 Removed 就改口还显得犹豫。
+
 **风险与退路**：插件历来只按"语言类型"判定，改成看扩展名是引入第二条判据，
 maintainer 可能以一致性为由拒绝。被拒也不亏——fork 留着，或者退到零代码方案
 （在说明里让用户把 `jsonc` 加进 Notepad++ 的 json 语言用户扩展名，比改 langs.xml 正当）。
+
+### 开完 #255 之后的收尾（别忘了）
+
+在 #251 那条回复（comment id `3939416226`）**末尾追加**一句指向新 PR，让后来读 thread
+的人有去处：
+
+```bash
+gh api -X PATCH repos/NPP-JSONViewer/JSON-Viewer/pulls/comments/3939416226 \
+  -f body="$(cat new-body.md)"
+```
+
+追加的内容：
+> Superseded by #255, which recognises .jsonc without accepting JSON5 at all —
+> a real .json5 file keeps behaving exactly as before.
+
+（另两条备用 id：我们的 `configPath` 回复是 `3939416311`；他那两条原始意见是
+`3939342913` / `3939344367`，**那两条我们不能改**。）
 
 ---
 
@@ -134,6 +155,8 @@ maintainer 可能以一致性为由拒绝。被拒也不亏——fork 留着，�
 | **fork 账号无法 `requested_reviewers`**（404，无写权限） | 回应完只能等对方收到通知，不能主动催 |
 | **`gh pr edit --body-file` 是整体替换** | 追加正文必须先取回原 body 再拼接，改完回读校验（#251 正文就是这么丢的） |
 | 只有小 PR 会被 review | 见第一节；#251（65 行）被看，#253（20 文件）没人碰 |
+| **自己发的评论可改可删**（`PATCH`/`DELETE` `/pulls/comments/{id}`） | 但**编辑不发通知**，且会留 edited 标记；别人的评论改不了 |
+| **push 后别急着取 CI 产物** | `gh run list --limit 1` 可能拿到上一次的 run（新的还没登记），`watch` 会秒回 "already completed"。必须核对 `headSha` == 本地 HEAD 再下载 |
 
 ### 写 PR 正文的硬要求
 
