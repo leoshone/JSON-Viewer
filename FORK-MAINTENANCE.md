@@ -24,18 +24,19 @@ DPI 缩放系数，任何非 100% 缩放的显示器上树控件都会比面板�
 行被父窗口裁掉且滚动条到不了（150% + 默认行高时约 5~10 行），节点路径输入框也会被整个
 推出面板外。修复改为绝对定位：模板矩形 + 未缩放增量，树底部始终锚在节点路径框上方。
 
-**R6 归属变更（2026-09-05）**：上游 maintainer SinghRajenM 在 #251 评审要求
-"remove JSON5 as it is not supported currently by the plugin"——理由是插件解析器
-不支持真正的 JSON5 语法（无引号 key、单引号字符串），接了 `L_JSON5` 会误导。
-已按他要求从 `fix/persist-tree-zoom`（#251）与 `fix/per-tab-tree-snapshot`（#253）
-**reset 掉该提交**（各只动 `ScintillaEditor.cpp` 一个文件），两个 PR 恢复为纯 R1 / R3+R2+R5；
-**jsonc 改动只留在 fork 的 `integration/all-features`**（合并历史独立，不受分支 reset 影响）。
-对本机无影响：xiongbin 早已把 `langs.xml` 里的 jsonc 从 json5 语言挪到 json 语言，
-`.jsonc` 报的是 `L_JSON`，本来就不依赖这行代码。
+**R6 现在是窄版（2026-09-05）**：`IsJsonFile()` 接受 json5 语言**仅限 `.jsonc` 扩展名**，
+真正的 `.json5` 文件依旧被忽略（与改动前完全一致）。起因是上游 maintainer 在 #251 要求
+移除 `L_JSON5`——完整过程、评审原文与决策理由见 **[`UPSTREAM-PR-LOG.md`](UPSTREAM-PR-LOG.md)**。
 
 jsonc 支持边界：注释 + 尾逗号（解析层本就支持且默认开启）；完整 JSON5 语法
-（无引号 key、单引号字符串）**不在支持范围**，会照常报解析错误。
+（无引号 key、单引号字符串）**不在支持范围**——`.json5` 文件会被插件忽略，
+既不解析也不报错。
 `IsJsonFile()` 是原版就有的判定点，此改动同时惠及 FOLLOW_TAB 与 auto-format。
+
+已实测确认（E2E）：Notepad++ 把 `.jsonc` 与 `.json5` 都报为同一个语言（86 = L_JSON5），
+内容相同的情况下只有 `.jsonc` 会被画树；且**画树成功后插件会把缓冲区语言改写成
+L_JSON**（`HighlightAsJson` → `SetLangAsJson`），所以任何语言探测都必须在
+DRAW_ON_OPEN 关闭的状态下做，否则读到的是改写后的值。
 
 ### 分支拓扑
 
@@ -174,17 +175,13 @@ Copy-Item "D:\AiSpaces\Code\JSON-Viewer\_build\ci-integration\NPPJSONViewer.dll"
 5. **fork 账号无法在上游 PR 上 `requested_reviewers`**（404，无写权限）。
    回应完评审意见只能等对方收到通知，不能主动 re-request。
 
-### 上游 PR 状态（2026-09-05）
+### 上游推进记录
 
-| PR | 内容 | 状态 |
-|---|---|---|
-| [#251](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/251) | R1 缩放固化（65 行 / 6 文件） | **CHANGES_REQUESTED**：要求移除 JSON5 → 已整改并逐条回复 |
-| [#252](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/252) | R3 Refresh 保留展开态 | 无人评审 |
-| [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) | R2+R5 按 TAB 缓存 / 打开画树 | 无人评审（已按 #251 的意见同步撤下 jsonc） |
-| [#254](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/254) | R7 高 DPI 裁行修复 | 无人评审 |
+每个 PR 的状态、评审原文、我们的决策与理由、待办动作，全部记在
+**[`UPSTREAM-PR-LOG.md`](UPSTREAM-PR-LOG.md)**，不在这里重复（两份状态表必然不同步）。
 
-信号很明确：**只有小 PR 会被看**。#251 是本批唯一被 review 的（也是唯一有机会合的），
-所以后续任何顺手改动都**不要塞进 #251**——先问自己"这个改动会让这个 PR 变难审吗"。
+一句话提醒：**只有小 PR 会被看**。#251（65 行）是本批唯一被 review 的，
+所以任何顺手改动都**不要塞进 #251**——先问自己"这个改动会让这个 PR 变难审吗"。
 
 ---
 
