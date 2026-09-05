@@ -57,7 +57,25 @@ void NppJsonPlugin::ProcessNotification(const SCNotification* notifyCode)
     {
         if (m_pJsonViewDlg && m_bNppReady && !m_bAboutToClose)
         {
-            m_pJsonViewDlg->HandleTabActivated();
+            m_pJsonViewDlg->HandleTabActivated(notifyCode->nmhdr.idFrom);
+        }
+        break;
+    }
+
+    case NPPN_FILECLOSED:
+    {
+        if (m_pJsonViewDlg)
+        {
+            m_pJsonViewDlg->HandleFileClosed(notifyCode->nmhdr.idFrom);
+        }
+        break;
+    }
+
+    case NPPN_FILEOPENED:
+    {
+        if (m_pJsonViewDlg && m_bNppReady && !m_bAboutToClose)
+        {
+            m_pJsonViewDlg->HandleFileOpened();
         }
         break;
     }
@@ -70,11 +88,15 @@ void NppJsonPlugin::ProcessNotification(const SCNotification* notifyCode)
 
     case NPPN_READY:
     {
-        // This is workaround where dialog does not show tree on launch
-        if (m_pJsonViewDlg && m_pJsonViewDlg->isVisible() && !m_bAboutToClose)
+        // The tree is never drawn automatically: every tab starts empty and the
+        // user decides when to refresh it. Only the current buffer id is picked
+        // up so that the first refresh is attached to the right tab.
+        if (m_pJsonViewDlg && !m_bAboutToClose)
         {
-            ::SendMessage(m_pJsonViewDlg->getHSelf(), WM_COMMAND, IDC_BTN_REFRESH, 0);
-            m_pJsonViewDlg->UpdateTitle();
+            m_pJsonViewDlg->SyncBufferId();
+
+            if (m_pJsonViewDlg->isVisible())
+                m_pJsonViewDlg->RestoreCurrentTabTree();
         }
         m_bNppReady = true;
         break;
@@ -169,7 +191,8 @@ void NppJsonPlugin::ConstructSetting()
 {
     if (!m_pSetting)
     {
-        m_pSetting = std::make_shared<Setting>();
+        m_pSetting             = std::make_shared<Setting>();
+        m_pSetting->configPath = m_configPath;
         ProfileSetting(m_configPath).GetSettings(*m_pSetting);
     }
 }
