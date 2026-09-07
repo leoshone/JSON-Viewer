@@ -1,7 +1,8 @@
-#pragma
+#pragma once
 
 #include <string>
 #include <memory>
+
 #include "Define.h"
 #include "Notepad_plus_msgs.h"
 #include "ShortcutCommand.h"
@@ -36,7 +37,7 @@ private:
     class Callback
     {
         friend class NppJsonPlugin;
-        static NppJsonPlugin* m_pNppJsonPlugin;
+        inline static NppJsonPlugin* m_pNppJsonPlugin = nullptr;
 
     public:
         Callback()  = default;

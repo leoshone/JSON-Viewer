@@ -1,4 +1,7 @@
 #pragma once
+
+#include <string>
+
 #include "PluginInterface.h"
 
 // Define the number of plugin commands here
@@ -64,6 +67,8 @@ const TCHAR STR_INI_FORMATTING_INDENTCOUNT[] = TEXT("INDENTATION_COUNT");
 
 const TCHAR STR_INI_OTHER_SEC[]               = TEXT("Others");
 const TCHAR STR_INI_OTHER_FOLLOW_TAB[]        = TEXT("FOLLOW_TAB");
+const TCHAR STR_INI_OTHER_TREE_ZOOM[]         = TEXT("TREE_ZOOM_LEVEL");
+const TCHAR STR_INI_OTHER_DRAW_ON_OPEN[]      = TEXT("DRAW_ON_OPEN");
 const TCHAR STR_INI_OTHER_AUTO_FORMAT[]       = TEXT("AUTO_FORMAT");
 const TCHAR STR_INI_OTHER_USE_HIGHLIGHT[]     = TEXT("USE_JSON_HIGHLIGHT");
 const TCHAR STR_INI_OTHER_IGNORE_COMMENT[]    = TEXT("IGNORE_COMMENT");
@@ -114,7 +119,9 @@ struct Setting
     LineFormat   lineFormat = LineFormat::DEFAULT;
     Indent       indent {};
     bool         bFollowCurrentTab = false;
+    bool         bDrawOnOpen       = false;    // Draw the tree once when a json file is opened
     bool         bAutoFormat       = false;
     bool         bUseJsonHighlight = true;
+    int          nTreeZoom         = 100;    // Tree view font zoom in percent (80..250)
     ParseOptions parseOptions {};
 };
