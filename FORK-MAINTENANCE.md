@@ -12,7 +12,7 @@
 
 | 功能 | 开关（ini `[Others]`） | 默认 | 上游 PR |
 |------|------------------------|------|---------|
-| R1 树面板字体缩放固化（80%~250%，重启恢复） | `TREE_ZOOM` | `100` | [#251](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/251) |
+| R1 树面板字体缩放固化（80%~250%，重启恢复） | `TREE_ZOOM_LEVEL`（上游 09-07 由 `TREE_ZOOM` 改名） | `100` | [#251](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/251) |
 | R2 按 TAB 缓存树快照（绝不自动解析，Refresh 才画；切 TAB 回放快照不重解析；关 TAB 清缓存） | 原有 `FOLLOW_TAB=0` 的新行为 | `0` | [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) |
 | R3 Refresh 保留展开态与选中（按节点路径匹配，路径失效的丢弃） | 无（直接生效） | — | [#252](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/252) |
 | R5 打开 json 文件时自动画一次树（之后仍走 R2 快照，不重解析） | `DRAW_ON_OPEN` | `0` | 并入 [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) |
@@ -51,7 +51,7 @@ c448336 (上游 master 基线)
 
 - **`integration/all-features`** 是"全家桶"：合并 R1 进 #253 链，解决过 3 处
   相邻插入冲突（`Define.h` / `Profile.cpp` / `ProfileTest.cpp` 的
-  `TREE_ZOOM` vs `DRAW_ON_OPEN`）。**平时自己用、要部署 DLL，认准这条分支。**
+  `TREE_ZOOM_LEVEL` vs `DRAW_ON_OPEN`）。**平时自己用、要部署 DLL，认准这条分支。**
 - fork 上的 draft PR（leoshone#5 等）仅为触发 CI，**永不合并**。
 
 ### 与上游的关键行为差异（同步代码前先读懂）
@@ -105,7 +105,12 @@ git merge upstream/master
 
 # 4) 如果上游吸收了我们的某个 PR（比如先合了 #251）：
 #    合并会自动去重；确认 integration 分支里该功能的代码仍只剩一份：
-git grep -n "TREE_ZOOM" -- src/        # 应只有 Define.h/Profile.cpp/JsonViewDlg.cpp/SettingsDlg.cpp 各一处定义
+git grep -n "TREE_ZOOM" -- src/        # 应只有 3 处：Define.h 定义、Profile.cpp 读、Profile.cpp 写
+# 另：上游 09-07 把设置保存改成"退出时统一写"，且键名 TREE_ZOOM -> TREE_ZOOM_LEVEL。
+# 同步后必须做两件事，漏一件就静默丢设置：
+#   1) 检查 Setting 结构体有没有重复字段（上游 #251 带进来一份 + 我们自己一份，
+#      09-07 真出现了，只有编译器报 C2086 才暴露）
+#   2) 迁移用户 ini 的键名，否则缩放回退到 100
 ```
 
 ### 同步后必跑的验证（缺一不可）
@@ -150,7 +155,7 @@ Copy-Item "D:\AiSpaces\Code\JSON-Viewer\_build\ci-integration\NPPJSONViewer.dll"
 
 | 文件 | 冲突形态 | 处置 |
 |------|----------|------|
-| `src/NppJsonViewer/Define.h` | 上游改 `Setting` 结构体 / 我们加了两个常量和一个字段 | 保两边；`TREE_ZOOM` 常量在上、`DRAW_ON_OPEN` 在下的顺序保持稳定 |
+| `src/NppJsonViewer/Define.h` | 上游改 `Setting` 结构体 / 我们加了常量 | 保两边；`TREE_ZOOM_LEVEL` 常量在上、`DRAW_ON_OPEN` 在下的顺序保持稳定。**同步后必查 `nTreeZoom` 是否重复声明**（09-07 真出现了，编译器 C2086 才暴露） |
 | `src/NppJsonViewer/Profile.cpp` | `GetSettings`/`SetSettings` 读写链相邻行 | 保两边；注意 `bRetVal &&` 链别断（虽然上游 `ReadValue(int)` 恒真，链断了也不报错——这正是它隐蔽的地方） |
 | `tests/UnitTest/ProfileTest.cpp` | 默认值断言块 + 文件尾部新测试 | 保两边；`TreeZoom_RoundTrip` 和 `DrawOnOpen_RoundTrip` 两个 TEST 都要在 |
 | `src/NppJsonViewer/JsonViewDlg.cpp` | 上游若改 `display()`/`HandleTabActivated()`/`DrawJsonTree()` 会撞我们的大改动 | **人工逐段合**。改动核心都在这几处：`display()` 的 `bShow` 分支、`HandleTabActivated` 的 else 分支、`RestoreTabState` 的无快照分支、`DrawJsonTree` 的静默开关 |
