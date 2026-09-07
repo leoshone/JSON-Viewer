@@ -13,15 +13,14 @@
 
 | PR | 内容 | 提交 | 状态 |
 |---|---|---|---|
-| [#251](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/251) | R1 树缩放固化（65 行 / 6 文件） | 09-03 | **CHANGES_REQUESTED** → 已整改并逐条回复，等对方回应 |
-| [#252](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/252) | R3 Refresh 保留展开态 | 09-03 | 无人评审 |
-| [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) | R2+R5 按 TAB 缓存 / 打开画树 | 09-04 | 无人评审（已按 #251 意见撤下 jsonc） |
-| [#254](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/254) | R7 高 DPI 树底行裁切修复 | 09-04 | 无人评审 |
-| **待开 #255** | R6 窄版 jsonc 识别 | — | **计划已定（09-05）**：等 #251 有结果再开，见第四节 |
+| [#251](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/251) | R1 树缩放固化（65 行 / 6 文件） | 09-03 | ✅ **MERGED + APPROVED**（09-05 整改后获批，**第一个进上游的成果**） |
+| [#252](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/252) | R3 Refresh 保留展开态 | 09-03 | 无人评审；09-07 确认 MERGEABLE（无需动） |
+| [#253](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/253) | R2+R5 按 TAB 缓存 / 打开画树 | 09-04 | 无人评审；09-07 rebase 到 fa8d2b9，MERGEABLE |
+| [#254](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/254) | R7 高 DPI 树底行裁切修复 | 09-04 | rebase 完成、before/after 对比已发（09-07），等回应 |
+| [#255](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/255) | R6 窄版 jsonc 识别 | 09-07 | **OPEN**，正文首段直接引用 #251 的评审意见 |
 
-**总体判断**：上游实质停滞，三个 PR 挂着无人评审。真正的策略是**把上游当主线、定期反向
-同步**，而不是等它吸收我们。但 #251 是个例外——它小而纯，是唯一有希望进上游的，
-值得为它多花点功夫。
+**总体判断更新（09-07）**：上游并不完全停滞——#251 被合并，且合并后上游自己又做了跟进
+（0f096dc 重写了设置保存逻辑 + 改了我们 ini 键名，见下）。**小而纯的 PR 策略已被验证有效**。
 
 ---
 
@@ -103,50 +102,53 @@ return false;
 
 ---
 
-## 四、待办：窄版推上游（#255）
+## 四、窄版推上游（#255）—— ✅ 已于 09-07 执行
 
-**计划已于 2026-09-05 定稿：要推，但现在不开；#251 的 thread 现在也不改。**
+按 09-05 定稿的计划执行完毕，实际动作：
 
-- **推的理由**：窄版是正面回应意见 1 的——它压根不接受 JSON5 语言，只在扩展名是
-  `.jsonc` 时破例，`.json5` 行为零变化。这是把他的顾虑原样解决的方案，通过概率
-  明显高于之前那个宽版。
-- **不开的理由（时机）**：我们刚在同一条 thread 里说"Removed, jsonc stays in my fork"，
-  扭头又提 jsonc 显得反复；而且同时挂两个相关 PR 容易让人困惑。
-- **触发条件**：#251 被批准或合并 → 立刻开；或 #251 两周无回音 → 开。
-- **开法**：**新 PR（预计 #255），不要塞进 #251**（#251 必须保持小而纯）。
-  正文第一段直说：
-  > Following your comment on #251 — here is a version that does not accept JSON5
-  > at all; it only recognises the `.jsonc` extension, and a real `.json5` file
-  > keeps behaving exactly as before.
+1. **#255 已开**：[Recognize .jsonc files without implying JSON5 support](https://github.com/NPP-JSONViewer/JSON-Viewer/pull/255)，
+   分支 `feature/jsonc-narrow`（upstream/master fa8d2b9 + 窄版提交），
+   正文首段直接引用 #251 的评审意见。
+2. **#251 的 thread 追加了指向**（comment `3939416226`，PATCH 编辑成功——按计划，开完
+   #255 后才改的，不是之前就改）：
+   > Follow-up: #255 now proposes jsonc recognition in the narrow form discussed here -
+   > it does not accept the JSON5 language at all, only the `.jsonc` extension, and a
+   > real `.json5` file keeps behaving exactly as before.
+3. cherry-pick 窄版提交到新分支时有 2 处冲突（include 区 + IsJsonFile 本体），均按
+   "保留窄版语义 + 顺应上游新 include 顺序"解决，本地 MinGW 编译通过。
 
-- **#251 的 thread 现在不动**：那条 "Removed … jsonc recognition stays in my fork"
-  目前仍然属实（窄版确实只在 fork 里）。而且**编辑评论不会重新发通知**，改了他也不一定
-  看得到，收益极低；刚说完 Removed 就改口还显得犹豫。
-
-**风险与退路**：插件历来只按"语言类型"判定，改成看扩展名是引入第二条判据，
+**风险与退路（仍有效）**：插件历来只按"语言类型"判定，改成看扩展名是引入第二条判据，
 maintainer 可能以一致性为由拒绝。被拒也不亏——fork 留着，或者退到零代码方案
 （在说明里让用户把 `jsonc` 加进 Notepad++ 的 json 语言用户扩展名，比改 langs.xml 正当）。
 
-### 开完 #255 之后的收尾（别忘了）
+---
 
-在 #251 那条回复（comment id `3939416226`）**末尾追加**一句指向新 PR，让后来读 thread
-的人有去处：
+## 五、上游动态（09-07 观察，影响下次同步）
 
-```bash
-gh api -X PATCH repos/NPP-JSONViewer/JSON-Viewer/pulls/comments/3939416226 \
-  -f body="$(cat new-body.md)"
-```
+上游 master 前进到 `fa8d2b9`，三个新提交，**对 integration 分支有直接影响**：
 
-追加的内容：
-> Superseded by #255, which recognises .jsonc without accepting JSON5 at all —
-> a real .json5 file keeps behaving exactly as before.
+| 提交 | 内容 | 对我们的影响 |
+|---|---|---|
+| `0f096dc` | Code improvement：**设置改为退出时保存且仅在变化时写**（`writeIfChanged`）+ include 顺序调整 | integration 的 `Profile.cpp` 写入路径必须顺应 `writeIfChanged` 模式 |
+| `7605bf1` | Update submodule | submodule 指针，同步时自动处理 |
+| `fa8d2b9` | Header file order change（9 个 .cpp 的 include 重排） | 与我们所有 PR 的 include 冲突，rebase 时逐个解决即可 |
 
-（另两条备用 id：我们的 `configPath` 回复是 `3939416311`；他那两条原始意见是
-`3939342913` / `3939344367`，**那两条我们不能改**。）
+**⚠️ 重要：上游把我们的 ini 键名改了** —— `TREE_ZOOM` → **`TREE_ZOOM_LEVEL`**
+（`Define.h: STR_INI_OTHER_TREE_ZOOM[] = TEXT("TREE_ZOOM_LEVEL")`，上游合并 #251 后的跟进）。
+
+后果：
+- integration 分支目前仍写 `TREE_ZOOM`，**同步上游后必须跟随改名**；
+- 改名意味着**已有 ini 里的 `TREE_ZOOM=200` 会被忽略**（回退到 100），用户需重新设置一次。
+  如在意，可在同步时加一步向后兼容读取（先读 `TREE_ZOOM_LEVEL`，读不到再读 `TREE_ZOOM`）——
+  是否值得加，同步时再定。
+
+09-07 已把 **#253/#254 rebase 到 `fa8d2b9`**（冲突解法：`Profile.cpp` 写入侧顺应
+`writeIfChanged`、DRAW_ON_OPEN 用同样模式；`Define.h`/`ProfileTest.cpp` 两侧都保留），
+三个分支均 `mergeable=true`，MinGW 编译 + 单测全过。
 
 ---
 
-## 五、环境事实（每次推 PR 前都适用）
+## 六、环境事实（每次推 PR 前都适用）
 
 | 事实 | 影响 |
 |---|---|
