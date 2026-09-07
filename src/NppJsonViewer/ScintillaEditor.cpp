@@ -1,5 +1,6 @@
 #include "ScintillaEditor.h"
 #include "StringHelper.h"
+
 #include <cassert>
 #include <memory>
 
